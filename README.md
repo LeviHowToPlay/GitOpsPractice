@@ -1,0 +1,58 @@
+# demo-gitops
+
+集群的唯一真相。`demo-app` 的代码在 [JavaPractice](https://github.com/LeviHowToPlay/JavaPractice)。
+
+```
+bootstrap/root-app.yaml          唯一一个手动 kubectl apply 的东西
+argocd/projects/demo.yaml        AppProject：限制能动哪些命名空间
+argocd/applications/             demo-dev（自动同步）/ demo-prod（手动同步）
+apps/demo-app/base/              deployment · service · ingress
+apps/demo-app/overlays/dev/      CI 只改这里的 image tag
+apps/demo-app/overlays/prod/     只有人手动提 PR 才会改
+kind-cluster.yaml                本地集群定义（80 → 宿主机 8080）
+```
+
+## 从零把集群拉起来
+
+```bash
+# 1. 集群
+kind create cluster --config kind-cluster.yaml
+
+# 2. ingress-nginx（kind 专用版本，会自动用上 extraPortMappings）
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl -n ingress-nginx wait --for=condition=ready pod \
+  -l app.kubernetes.io/component=controller --timeout=180s
+
+# 3. Argo CD
+#    必须用 --server-side：applicationsets CRD 的 annotation 超过 256KB，
+#    普通 kubectl apply 会报 "metadata.annotations: Too long"。
+kubectl create namespace argocd
+kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.1/manifests/install.yaml
+kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
+
+# 4. 唯一一次手动 apply —— 之后所有东西都由 Git 决定
+kubectl apply -f bootstrap/root-app.yaml
+```
+
+UI 与初始密码：
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+kubectl -n argocd port-forward svc/argocd-server 8081:443
+# https://localhost:8081  用户名 admin（自签证书，浏览器警告继续即可）
+```
+
+## 访问
+
+| 环境 | 地址 | 同步策略 |
+| --- | --- | --- |
+| dev  | http://localhost:8080 | automated + selfHeal |
+| prod | http://prod.localtest.me:8080 | 手动 Sync |
+
+`prod.localtest.me` 是公共 DNS，解析到 127.0.0.1，不用改 hosts 文件。
+
+## 注意
+
+两个 overlay 的初始 tag 都是 `bootstrap`，这个镜像并不存在 —— Pod 会 `ImagePullBackOff`，
+这是预期的。等 `demo-app` 第一次 push 到 main、CI 把真实 git sha 回写到 dev overlay 之后，
+dev 就会自己起来。prod 要等你手动把那个 sha 提 PR 过来。

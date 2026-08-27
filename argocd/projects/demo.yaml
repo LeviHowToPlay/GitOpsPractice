@@ -1,0 +1,24 @@
+# AppProject 限制这个项目能拉哪个仓库、能动哪些命名空间。
+# sync-wave -1：确保它比引用它的 Application 先创建，否则 Application 会报 project not found。
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: demo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: GitOps 练习项目
+  sourceRepos:
+    - https://github.com/LeviHowToPlay/GitOpsPractice.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: demo-dev
+    - server: https://kubernetes.default.svc
+      namespace: demo-prod
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

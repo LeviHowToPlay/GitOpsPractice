@@ -1,0 +1,19 @@
+# prod：刻意不开 automated —— 「上生产」必须是一次人为动作（UI 上点 Sync 或 argocd app sync）。
+# 这样你才能亲手观察到「Git 已经是新的，但集群还是旧的」这个 OutOfSync 状态。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-prod
+  namespace: argocd
+spec:
+  project: demo
+  source:
+    repoURL: https://github.com/LeviHowToPlay/GitOpsPractice.git
+    targetRevision: main
+    path: apps/demo-app/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-prod
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

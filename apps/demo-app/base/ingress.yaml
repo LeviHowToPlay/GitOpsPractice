@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-app
+spec:
+  ingressClassName: nginx
+  rules:
+    # base 不写 host，于是 dev 直接用 http://localhost:8080 就能访问。
+    # prod overlay 会 patch 上一个 host，避免两个环境抢同一条路由。
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: demo-app
+                port:
+                  name: http

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+        - name: demo-app
+          # 占位名，由各 overlay 的 images: 段替换成 ghcr.io/<owner>/demo-app:<git-sha>
+          image: demo-app
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:                        # JVM 启动慢，先给它 60 秒宽限
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:                       # 挂了就重启
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+          readinessProbe:                      # 没准备好就不给流量
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits:   { memory: 768Mi }

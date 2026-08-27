@@ -1,0 +1,22 @@
+# 唯一一个需要手动 kubectl apply 的文件。
+# 它管着 argocd/ 目录 —— 于是「有哪些 AppProject / 有哪些 Application」本身也被 Git 管起来了。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/LeviHowToPlay/GitOpsPractice.git
+    targetRevision: main
+    path: argocd
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
