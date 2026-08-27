@@ -4,11 +4,11 @@ kind: Kustomization
 namespace: demo-dev
 
 resources:
-  - ../../base
+- ../../base
 
 # CI 的 bump job 只改下面这三行（kustomize edit set image）。
 # 初始 tag 是 bootstrap，镜像还不存在 —— 第一次 push demo-app 之后它就会被替换成真实 git sha。
 images:
-  - name: demo-app
-    newName: ghcr.io/levihowtoplay/demo-app
-    newTag: bootstrap
+- name: demo-app
+  newName: ghcr.io/levihowtoplay/demo-app
+  newTag: 3e1ae38ca8df025df96e8cd5bbbdd2116467b782
