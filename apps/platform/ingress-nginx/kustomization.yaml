@@ -31,3 +31,18 @@ patches:
           argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
       - op: remove
         path: /spec/ttlSecondsAfterFinished
+
+# controller 的 Service 上游给的是 LoadBalancer 类型。kind 里没有
+# LoadBalancer 实现，EXTERNAL-IP 永远 <pending>，而 Argo CD 对
+# LoadBalancer 的健康判据正是「拿到外部 IP」—— 于是应用永远 Progressing。
+#
+# 这个 Service 在 kind 里本来就没用：真正把宿主机 8080 的流量送进来的是
+# controller 容器上的 hostPort 80/443（见 kind-cluster.yaml 的
+# extraPortMappings）。改成 ClusterIP，健康状态才反映真实情况。
+  - target:
+      kind: Service
+      name: ingress-nginx-controller
+    patch: |
+      - op: replace
+        path: /spec/type
+        value: ClusterIP
