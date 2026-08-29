@@ -1,0 +1,31 @@
+# ingress-nginx：直接指向上游仓库的 kind provider 目录，钉在 tag 上。
+# 不 vendor 到本仓库，也不用 Helm —— 这个目录渲染出来的东西
+# 和 bootstrap 时 kubectl apply 的那份 deploy.yaml 完全一致，所以零 diff。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/kubernetes/ingress-nginx.git
+    targetRevision: controller-v1.15.1
+    path: deploy/static/provider/kind
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+  ignoreDifferences:
+    # 装 webhook 证书的那两个 Job 完成后，Job 控制器会往 selector/labels
+    # 里塞 controller-uid，这是运行时产物，不该算作漂移。
+    - group: batch
+      kind: Job
+      jsonPointers:
+        - /spec/selector
+        - /spec/template/metadata/labels

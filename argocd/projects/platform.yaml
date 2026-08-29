@@ -1,0 +1,27 @@
+# 平台组件（集群自己跑起来所需的东西）用独立的 project，
+# 和业务应用的 demo project 分开 —— 它们需要的权限完全不同：
+# 平台组件要建 CRD、ClusterRole、Namespace，业务应用不该有这些权限。
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"   # 比引用它的 Application 先创建
+spec:
+  description: 集群平台组件（Argo CD 自身、ingress）
+  sourceRepos:
+    - https://github.com/argoproj/argo-cd.git
+    - https://github.com/kubernetes/ingress-nginx.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: ingress-nginx
+  # 平台组件本来就需要集群级资源（CRD / ClusterRole / Namespace）
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

@@ -1,0 +1,49 @@
+# ══════════════════════════════════════════════════════════════════
+#  Argo CD 自管理
+#
+#  source 用的是 manifests/cluster-install（v3.5.1），它渲染出来的
+#  59 个资源和 bootstrap 时 kubectl apply 的 install.yaml 完全一致 ——
+#  版本必须钉死且对齐，否则一同步 Argo CD 就会把自己升/降级。
+#
+#  ⚠️ 刻意不开 automated。自管理最大的风险是「它把自己删了」：
+#     一旦 argocd-server / application-controller 被 prune 掉，
+#     就没有任何东西能把它们再拉起来，只能手动 kubectl apply 救场。
+#     先手动 Sync、亲眼看过 diff，确认无误后再考虑开自动。
+# ══════════════════════════════════════════════════════════════════
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/argoproj/argo-cd.git
+    targetRevision: v3.5.1
+    path: manifests/cluster-install
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      # 必须：applicationsets CRD 的 annotation 超过 256KB，
+      # 客户端 apply 会报 metadata.annotations: Too long
+      - ServerSideApply=true
+    # 注意这里没有 automated —— 见文件开头的说明
+  ignoreDifferences:
+    # argocd-secret 在清单里是空壳，但集群里存着 server 签名密钥、
+    # admin 密码和 TLS 证书（都是 argocd-server 运行时生成的）。
+    # 不忽略的话，同步有可能把这些抹掉 —— 后果是所有人被登出、
+    # 已签发的 token 全部失效。
+    - group: ""
+      kind: Secret
+      name: argocd-secret
+      jsonPointers:
+        - /data
+    # 这几个 ConfigMap 允许运维在集群里直接改（Argo CD 自己也会写），
+    # 清单里是空的，同样不参与比对。
+    - group: ""
+      kind: ConfigMap
+      name: argocd-cm
+      jsonPointers:
+        - /data
