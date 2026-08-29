@@ -11,4 +11,4 @@ resources:
 images:
 - name: demo-app
   newName: ghcr.io/levihowtoplay/demo-app
-  newTag: 3e1ae38ca8df025df96e8cd5bbbdd2116467b782
+  newTag: 9ee041ef37b7c7c5eb1bf3c2a2eda1a169007a7f
