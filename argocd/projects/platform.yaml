@@ -11,7 +11,9 @@ metadata:
 spec:
   description: 集群平台组件（Argo CD 自身、ingress）
   sourceRepos:
+    - https://github.com/LeviHowToPlay/GitOpsPractice.git
     - https://github.com/argoproj/argo-cd.git
+    # kustomize 远程 base 会由 repo-server 直接拉取，也要放行
     - https://github.com/kubernetes/ingress-nginx.git
   destinations:
     - server: https://kubernetes.default.svc

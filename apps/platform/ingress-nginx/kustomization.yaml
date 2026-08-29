@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 直接以上游的 kind provider 目录为远程 base，钉在 tag 上。
+# 不 vendor 那 679 行 YAML —— 升级时只要改这里的 ref。
+resources:
+  - github.com/kubernetes/ingress-nginx/deploy/static/provider/kind?ref=controller-v1.15.1
+
+# 那两个签发 webhook 证书的 Job 带着 ttlSecondsAfterFinished: 0，
+# 跑完就被 Kubernetes 立刻回收。如果按普通资源管理，Argo CD 会陷入
+# 「发现它不见了 → 重建 → 跑完又被删」的死循环，永远 OutOfSync。
+#
+# 声明成 sync hook 才符合它们的真实语义：同步时跑一次，成功后删除，
+# 且不计入应用的期望状态。
+patches:
+  - target:
+      kind: Job
+      name: "ingress-nginx-admission-(create|patch)"
+    patch: |
+      - op: add
+        path: /metadata/annotations
+        value:
+          argocd.argoproj.io/hook: Sync
+          argocd.argoproj.io/hook-delete-policy: HookSucceeded

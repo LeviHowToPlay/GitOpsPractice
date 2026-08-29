@@ -1,6 +1,6 @@
-# ingress-nginx：直接指向上游仓库的 kind provider 目录，钉在 tag 上。
-# 不 vendor 到本仓库，也不用 Helm —— 这个目录渲染出来的东西
-# 和 bootstrap 时 kubectl apply 的那份 deploy.yaml 完全一致，所以零 diff。
+# ingress-nginx：指向本仓库的 kustomize overlay，
+# 它以上游 kind provider 目录为远程 base（钉在 tag 上），
+# 只额外把两个签证书的 Job 标成 sync hook —— 原因见 overlay 里的注释。
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -9,9 +9,9 @@ metadata:
 spec:
   project: platform
   source:
-    repoURL: https://github.com/kubernetes/ingress-nginx.git
-    targetRevision: controller-v1.15.1
-    path: deploy/static/provider/kind
+    repoURL: https://github.com/LeviHowToPlay/GitOpsPractice.git
+    targetRevision: main
+    path: apps/platform/ingress-nginx
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx
@@ -21,11 +21,3 @@ spec:
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
-  ignoreDifferences:
-    # 装 webhook 证书的那两个 Job 完成后，Job 控制器会往 selector/labels
-    # 里塞 controller-uid，这是运行时产物，不该算作漂移。
-    - group: batch
-      kind: Job
-      jsonPointers:
-        - /spec/selector
-        - /spec/template/metadata/labels
