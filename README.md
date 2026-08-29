@@ -14,24 +14,38 @@ kind-cluster.yaml                本地集群定义（80 → 宿主机 8080）
 
 ## 从零把集群拉起来
 
+手动步骤只有两件事，且都是**引导问题** —— GitOps 需要一个已经在运行的
+Argo CD 才能开始工作，所以首次安装它永远无法自举。其余一切（ingress-nginx、
+AppProject、所有应用）都由 root-app 从 Git 带出来。
+
 ```bash
-# 1. 集群
+./bootstrap/rebuild.sh      # 下面四步的封装，带计时
+```
+
+或者手动：
+
+```bash
+# 引导 1/2 · 集群
 kind create cluster --config kind-cluster.yaml
 
-# 2. ingress-nginx（kind 专用版本，会自动用上 extraPortMappings）
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-kubectl -n ingress-nginx wait --for=condition=ready pod \
-  -l app.kubernetes.io/component=controller --timeout=180s
-
-# 3. Argo CD
-#    必须用 --server-side：applicationsets CRD 的 annotation 超过 256KB，
-#    普通 kubectl apply 会报 "metadata.annotations: Too long"。
+# 引导 2/2 · Argo CD
+#   必须用 --server-side：applicationsets CRD 的 annotation 超过 256KB，
+#   普通 kubectl apply 会报 "metadata.annotations: Too long"。
 kubectl create namespace argocd
 kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.1/manifests/install.yaml
 kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
 
-# 4. 唯一一次手动 apply —— 之后所有东西都由 Git 决定
+# 交给 Git · 唯一一次手动 apply
 kubectl apply -f bootstrap/root-app.yaml
+```
+
+重建后 `argocd` 这个应用会显示 **OutOfSync** —— 预期行为：刚 apply 出来的资源
+还没有 Argo CD 的 tracking-id 注解。它刻意不开 automated（自管理一旦把自己
+prune 掉就没救了），所以要人工确认后接管：
+
+```bash
+argocd app diff argocd     # 应该只有 tracking-id 注解，无功能性改动
+argocd app sync argocd
 ```
 
 UI 与初始密码：

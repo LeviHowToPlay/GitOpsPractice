@@ -29,9 +29,10 @@ while :; do
   out=$(kubectl -n argocd get applications.argoproj.io -o json 2>/dev/null \
         | jq -r '[.items[]|"\(.metadata.name):\(.status.sync.status // "-")/\(.status.health.status // "-")"]|join("  ")' 2>/dev/null || true)
   printf "\r  +%3ss  %-90s" "$(el)" "${out:-展开中}"
+  # 注意：不等 argocd 这个应用 —— 它刻意不开 automated（自管理若把自己
+  # prune 掉就没救了），首次重建后需要人工看过 diff 再手动 Sync。
   echo "$out" | grep -q "demo-dev:Synced/Healthy"      || { sleep 5; continue; }
   echo "$out" | grep -q "ingress-nginx:Synced/Healthy" || { sleep 5; continue; }
-  echo "$out" | grep -q "argocd:Synced"                || { sleep 5; continue; }
   break
 done
 echo
@@ -42,3 +43,8 @@ echo
 echo "服务返回: $(curl -s --max-time 8 localhost:8080 || echo '（ingress 还需几秒）')"
 printf "\n\033[32m✓ 总耗时 %s 秒\033[0m\n" "$(el)"
 echo "Argo CD 密码: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
+echo
+echo "argocd 应用会显示 OutOfSync —— 这是预期的：全新装出来的资源还没有"
+echo "Argo CD 的 tracking-id 注解。确认 diff 只有注解后手动接管："
+echo "  argocd app diff argocd   # 应该只看到 tracking-id"
+echo "  argocd app sync argocd"
