@@ -6,12 +6,19 @@ kind: Kustomization
 resources:
   - github.com/kubernetes/ingress-nginx/deploy/static/provider/kind?ref=controller-v1.15.1
 
-# 那两个签发 webhook 证书的 Job 带着 ttlSecondsAfterFinished: 0，
-# 跑完就被 Kubernetes 立刻回收。如果按普通资源管理，Argo CD 会陷入
-# 「发现它不见了 → 重建 → 跑完又被删」的死循环，永远 OutOfSync。
+# 那两个签发 webhook 证书的 Job 需要两处改造：
 #
-# 声明成 sync hook 才符合它们的真实语义：同步时跑一次，成功后删除，
-# 且不计入应用的期望状态。
+# ① 标成 sync hook。它们自带 ttlSecondsAfterFinished: 0，跑完就被
+#    Kubernetes 回收。按普通资源管理的话，Argo CD 会陷入死循环：
+#    发现资源缺失 → 重建 → 跑完又被删，应用永远 OutOfSync。
+#    hook 才是它们的真实语义：同步时跑一次，不计入期望状态。
+#
+# ② 删掉 ttlSecondsAfterFinished。否则 Kubernetes 的 TTL 控制器会和
+#    Argo CD 抢着删这个 Job —— Job 一完成就被 TTL 抹掉，Argo CD 还没
+#    读到 Succeeded 就发现对象没了，hookPhase 永远卡在 Running，
+#    把整个应用的 health 拖成 Progressing。
+#    删除权必须只交给一方，这里交给 Argo CD：用 BeforeHookCreation，
+#    Job 会留在集群里直到下次同步前才被替换，状态可读也可排查。
 patches:
   - target:
       kind: Job
@@ -21,4 +28,6 @@ patches:
         path: /metadata/annotations
         value:
           argocd.argoproj.io/hook: Sync
-          argocd.argoproj.io/hook-delete-policy: HookSucceeded
+          argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+      - op: remove
+        path: /spec/ttlSecondsAfterFinished
